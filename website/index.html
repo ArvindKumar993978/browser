@@ -336,8 +336,8 @@
         <a href="#install">Verify &amp; Install</a>
         <a href="./privacy.html">Privacy Policy</a>
         <a href="./security.html">Security</a>
-        <a class="nav-cta" id="nav-download" href="https://github.com/ArvindKumar993978/browser/releases/download/v0.1.3/Orbit-Browser-Setup-0.1.3.exe">
-          Download v0.1.3
+        <a class="nav-cta" id="nav-download" href="https://github.com/ArvindKumar993978/browser/releases/download/v0.1.4/Orbit-Browser-Setup-0.1.4.exe">
+          Download v0.1.4
         </a>
       </div>
     </div>
@@ -345,19 +345,27 @@
 
   <main class="container">
     <section class="hero">
-      <span class="pill" id="version-pill">Windows 10 / 11 (x64) · Version 0.1.3 · Zero Telemetry</span>
+      <span class="pill" id="version-pill">Windows (x64) &amp; Android (.apk) · Version 0.1.4 · Zero Telemetry</span>
       <h1>A Fast, Private Browser Built for Everyday Speed &amp; Focus</h1>
       <p>
         Orbit Browser combines Chromium's web compatibility with Workspaces, Vertical Tabs, Split View,
-        built-in Ghostery ad-blocking, Zero-XSS Reader Mode, and Tab Sleeping tuned for 8 GB RAM laptops.
+        built-in ad-blocking, Zero-XSS Reader Mode, and Tab Sleeping—available for both PC and Android.
       </p>
       <div class="hero-actions">
         <a
           id="hero-download"
           class="btn-primary"
-          href="https://github.com/ArvindKumar993978/browser/releases/download/v0.1.3/Orbit-Browser-Setup-0.1.3.exe"
+          href="https://github.com/ArvindKumar993978/browser/releases/download/v0.1.4/Orbit-Browser-Setup-0.1.4.exe"
         >
           Download for Windows (.exe)
+        </a>
+        <a
+          id="hero-android"
+          class="btn-primary"
+          style="background: linear-gradient(135deg, #059669, #0d9488); box-shadow: 0 12px 30px rgba(5, 150, 105, 0.28);"
+          href="https://github.com/ArvindKumar993978/browser/releases/download/v0.1.4/Orbit-Browser-Android-v0.1.4.apk"
+        >
+          Download for Android (.apk)
         </a>
         <a
           class="btn-secondary"
@@ -365,11 +373,11 @@
           target="_blank"
           rel="noopener"
         >
-          GitHub Releases &amp; Source
+          All Releases
         </a>
       </div>
       <div class="meta-line" id="file-meta">
-        Orbit-Browser-Setup-0.1.3.exe · ~119 MB · Built-in Auto-Updater · Open Architecture
+        Windows (.exe ~119 MB) · Android (.apk ~5 MB) · Built-in Auto-Updater · Open Architecture
       </div>
 
       <div class="mockup-wrap" aria-label="Orbit Browser Interface Preview">
@@ -491,18 +499,25 @@
       .then((release) => {
         if (!release || !Array.isArray(release.assets)) return;
         const exe = release.assets.find((a) => a.name && a.name.endsWith('.exe') && !a.name.includes('__uninstaller'));
-        if (!exe) return;
-        document.getElementById('hero-download').href = exe.browser_download_url;
-        document.getElementById('nav-download').href = exe.browser_download_url;
-        const tag = release.tag_name || 'v0.1.1';
-        document.getElementById('nav-download').textContent = 'Download ' + tag;
-        document.getElementById('version-pill').textContent = 'Windows 10 / 11 (x64) · ' + tag + ' · Zero Telemetry';
-        const mb = Math.round((exe.size || 125000000) / (1024 * 1024));
-        document.getElementById('file-meta').textContent = exe.name + ' · ~' + mb + ' MB · Built-in Auto-Updater · Open Architecture';
-        document.getElementById('sha256-label').textContent = 'SHA-256 (' + exe.name + ')';
-        if (exe.digest && exe.digest.startsWith('sha256:')) {
-          document.getElementById('sha256-text').textContent = exe.digest.replace('sha256:', '').toUpperCase();
+        const apk = release.assets.find((a) => a.name && a.name.endsWith('.apk'));
+        const tag = release.tag_name || 'v0.1.4';
+        if (exe) {
+          document.getElementById('hero-download').href = exe.browser_download_url;
+          document.getElementById('nav-download').href = exe.browser_download_url;
+          document.getElementById('sha256-label').textContent = 'SHA-256 (' + exe.name + ')';
+          if (exe.digest && exe.digest.startsWith('sha256:')) {
+            document.getElementById('sha256-text').textContent = exe.digest.replace('sha256:', '').toUpperCase();
+          }
         }
+        if (apk) {
+          document.getElementById('hero-android').href = apk.browser_download_url;
+        }
+        document.getElementById('nav-download').textContent = 'Download ' + tag;
+        document.getElementById('version-pill').textContent = 'Windows (x64) & Android (.apk) · ' + tag + ' · Zero Telemetry';
+        const winMb = exe ? Math.round((exe.size || 125000000) / (1024 * 1024)) : 119;
+        const apkMb = apk ? Math.max(1, Math.round((apk.size || 5000000) / (1024 * 1024))) : 5;
+        document.getElementById('file-meta').textContent =
+          'Windows (.exe ~' + winMb + ' MB) · Android (.apk ~' + apkMb + ' MB) · Zero Telemetry';
       })
       .catch(() => {});
   </script>

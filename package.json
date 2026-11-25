@@ -1,6 +1,6 @@
 {
   "name": "orbit-browser",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Orbit Browser - Custom multi-tab Electron WebContentsView browser",
   "main": "./out/main/index.js",
   "scripts": {
