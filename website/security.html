@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Security &amp; Protocol Architecture — Orbit Browser</title>
+  <link rel="icon" type="image/png" href="./assets/icon.png" />
+  <style>
+    body {
+      margin: 0;
+      font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+      background: #0b0f17;
+      color: #e2e8f0;
+      line-height: 1.7;
+    }
+    .wrap { max-width: 820px; margin: 0 auto; padding: 36px 22px 60px; }
+    a { color: #38bdf8; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .back { display: inline-block; margin-bottom: 20px; font-size: 0.9rem; }
+    h1 { margin: 0 0 8px; color: #fff; font-size: 2rem; }
+    h2 { margin: 28px 0 10px; color: #7dd3fc; font-size: 1.2rem; border-bottom: 1px solid #1e293b; padding-bottom: 6px; }
+    code {
+      background: #0f172a;
+      border: 1px solid #334155;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-family: Consolas, monospace;
+      font-size: 0.88em;
+    }
+    ul { padding-left: 20px; }
+    li { margin-bottom: 6px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="back" href="./index.html">&larr; Back to Orbit Browser</a>
+    <h1>Security &amp; Protocol Architecture</h1>
+
+    <h2>1. Process Isolation &amp; Sandbox</h2>
+    <ul>
+      <li>Every web tab runs inside an isolated Electron <code>WebContentsView</code> with <code>sandbox: true</code>, <code>contextIsolation: true</code>, <code>nodeIntegration: false</code>, <code>webviewTag: false</code>, <code>webSecurity: true</code>, and <code>allowRunningInsecureContent: false</code>.</li>
+      <li>Web tabs have <strong>no preload script</strong> and zero access to Node.js or browser IPC APIs.</li>
+      <li>Web browsing uses dedicated sessions (<code>persist:web-default</code> or ephemeral <code>private-&lt;uuid&gt;</code>) separate from the shell UI.</li>
+    </ul>
+
+    <h2>2. IPC &amp; Privilege Boundaries</h2>
+    <ul>
+      <li>Only Orbit's own internal UI views receive the <code>contextBridge</code> API (<code>orbitAPI</code>).</li>
+      <li>Every <code>ipcMain.handle</code> endpoint verifies <code>senderToManager</code> and validates argument types before acting.</li>
+      <li>Browser UI views enforce a strict Content Security Policy (<code>object-src 'none'</code>, <code>base-uri 'none'</code>).</li>
+    </ul>
+
+    <h2>3. Protocol &amp; Transport Security</h2>
+    <ul>
+      <li><strong>Allowed Schemes Only:</strong> Omnibox navigation, <code>will-navigate</code>, <code>will-redirect</code>, and popup handlers allow <code>http:</code> and <code>https:</code> only—blocking <code>file:</code>, <code>javascript:</code>, <code>data:</code>, and <code>vbscript:</code>.</li>
+      <li><strong>HTTPS-First Mode:</strong> External <code>http://</code> navigations automatically upgrade to <code>https://</code> (excluding localhost/LAN and explicit user HTTP fallbacks).</li>
+      <li><strong>Strict TLS Verification:</strong> Untrusted TLS certificates are blocked and displayed with a clear warning screen; certificate errors are never silently ignored.</li>
+      <li><strong>Zero-XSS Reader Mode:</strong> Article content is extracted as plain-text JSON blocks and rendered strictly via React JSX text nodes without raw HTML injection.</li>
+    </ul>
+  </div>
+</body>
+</html>

@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Orbit Browser — Fast, Private, 8 GB RAM Friendly Desktop Browser</title>
+  <meta
+    name="description"
+    content="Orbit Browser is a lightweight, privacy-focused multi-tab Windows browser with Vertical Tabs, Workspaces, Split View, built-in Ad & Tracker Shield, Reader Mode, and Tab Sleeping."
+  />
+  <link rel="icon" type="image/png" href="./assets/icon.png" />
+  <style>
+    :root {
+      --bg: #0b0f17;
+      --surface: #131926;
+      --surface-2: #1a2234;
+      --border: #253047;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-dark: #0284c7;
+      --green: #34d399;
+      --purple: #a78bfa;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+      background: radial-gradient(circle at 50% -10%, rgba(56, 189, 248, 0.16), transparent 45%), var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    a { color: inherit; text-decoration: none; }
+    .container { max-width: 1120px; margin: 0 auto; padding: 0 22px; }
+
+    /* Nav */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      backdrop-filter: blur(12px);
+      background: rgba(11, 15, 23, 0.8);
+      border-bottom: 1px solid rgba(37, 48, 71, 0.7);
+    }
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 1.08rem;
+      letter-spacing: -0.01em;
+    }
+    .brand img { width: 30px; height: 30px; border-radius: 50%; }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 22px;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      padding: 8px 16px;
+      border-radius: 999px;
+      background: var(--accent-dark);
+      color: #fff !important;
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+    .nav-cta:hover { background: #0369a1; }
+
+    /* Hero */
+    .hero {
+      text-align: center;
+      padding: 72px 0 46px;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 14px;
+      border-radius: 999px;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      color: #7dd3fc;
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+    h1 {
+      font-size: clamp(2.1rem, 4.8vw, 3.5rem);
+      line-height: 1.12;
+      margin: 20px auto 16px;
+      max-width: 780px;
+      letter-spacing: -0.03em;
+    }
+    .hero p {
+      max-width: 650px;
+      margin: 0 auto 30px;
+      color: var(--muted);
+      font-size: 1.08rem;
+    }
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+    }
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 26px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      color: #fff;
+      font-weight: 700;
+      font-size: 1rem;
+      box-shadow: 0 12px 30px rgba(2, 132, 199, 0.32);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 16px 36px rgba(2, 132, 199, 0.42);
+    }
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 22px;
+      border-radius: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+    .btn-secondary:hover { background: var(--surface-2); }
+    .meta-line {
+      margin-top: 14px;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    /* Browser Mockup */
+    .mockup-wrap {
+      margin: 42px auto 10px;
+      max-width: 960px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: #0f1117;
+      box-shadow: 0 28px 70px rgba(0, 0, 0, 0.65);
+      overflow: hidden;
+      text-align: left;
+    }
+    .mock-top {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px 0;
+      background: #0f1117;
+      border-bottom: 1px solid #1e293b;
+      font-size: 0.78rem;
+    }
+    .ws-pills { display: flex; gap: 6px; padding-bottom: 8px; }
+    .ws-pill {
+      padding: 3px 9px;
+      border-radius: 6px;
+      background: #1e293b;
+      color: #cbd5e1;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+    .ws-pill.active { background: #334155; color: #fff; }
+    .mock-tabs { display: flex; gap: 4px; flex: 1; overflow: hidden; }
+    .mock-tab {
+      padding: 6px 14px;
+      border-radius: 8px 8px 0 0;
+      color: #94a3b8;
+      background: transparent;
+      white-space: nowrap;
+    }
+    .mock-tab.active {
+      background: #1a1e29;
+      color: #f8fafc;
+      border-top: 1px solid #334155;
+      border-left: 1px solid #334155;
+      border-right: 1px solid #334155;
+    }
+    .mock-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: #1a1e29;
+      border-bottom: 1px solid #1e293b;
+    }
+    .mock-url {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: #0f1117;
+      border: 1px solid #334155;
+      font-size: 0.8rem;
+      color: #e2e8f0;
+    }
+    .shield-badge {
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(56, 189, 248, 0.16);
+      color: #7dd3fc;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+    .mock-body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      background: #0f1117;
+      padding: 4px;
+      min-height: 220px;
+    }
+    .mock-pane {
+      background: #131823;
+      border-radius: 8px;
+      padding: 20px;
+      border: 1px solid #1e293b;
+    }
+    .mock-pane h4 { margin: 0 0 8px; font-size: 0.95rem; color: #38bdf8; }
+    .mock-pane p { margin: 0; font-size: 0.84rem; color: #94a3b8; }
+
+    /* Sections */
+    section { padding: 56px 0; }
+    .section-title {
+      text-align: center;
+      font-size: 1.85rem;
+      margin: 0 0 10px;
+      letter-spacing: -0.02em;
+    }
+    .section-sub {
+      text-align: center;
+      color: var(--muted);
+      max-width: 600px;
+      margin: 0 auto 34px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+    }
+    .card h3 { margin: 0 0 8px; font-size: 1.02rem; color: #f8fafc; }
+    .card p { margin: 0; font-size: 0.88rem; color: var(--muted); }
+
+    /* Install box */
+    .install-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 26px;
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 24px;
+      align-items: center;
+    }
+    .hash-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #0b0f17;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-family: Consolas, monospace;
+      font-size: 0.76rem;
+      color: #cbd5e1;
+      overflow-x: auto;
+      margin-top: 10px;
+    }
+    .copy-btn {
+      padding: 5px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text);
+      font-size: 0.75rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .copy-btn:hover { background: #26334d; }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 28px 0 40px;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+    .footer-inner {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .footer-links { display: flex; gap: 20px; }
+    .footer-links a:hover { color: var(--text); }
+
+    @media (max-width: 760px) {
+      .nav-links a:not(.nav-cta) { display: none; }
+      .mock-body, .install-box { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="container nav-inner">
+      <a class="brand" href="./index.html">
+        <img src="./assets/icon.png" alt="Orbit Browser Icon" />
+        <span>Orbit Browser</span>
+      </a>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#install">Verify &amp; Install</a>
+        <a href="./privacy.html">Privacy Policy</a>
+        <a href="./security.html">Security</a>
+        <a class="nav-cta" id="nav-download" href="https://github.com/ArvindKumar993978/browser/releases/download/v0.1.1/Orbit-Browser-Setup-0.1.1.exe">
+          Download v0.1.1
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container">
+    <section class="hero">
+      <span class="pill" id="version-pill">Windows 10 / 11 (x64) · Version 0.1.1 · Zero Telemetry</span>
+      <h1>A Fast, Private Browser Built for Everyday Speed &amp; Focus</h1>
+      <p>
+        Orbit Browser combines Chromium's web compatibility with Workspaces, Vertical Tabs, Split View,
+        built-in Ghostery ad-blocking, Zero-XSS Reader Mode, and Tab Sleeping tuned for 8 GB RAM laptops.
+      </p>
+      <div class="hero-actions">
+        <a
+          id="hero-download"
+          class="btn-primary"
+          href="https://github.com/ArvindKumar993978/browser/releases/download/v0.1.1/Orbit-Browser-Setup-0.1.1.exe"
+        >
+          Download for Windows (.exe)
+        </a>
+        <a
+          class="btn-secondary"
+          href="https://github.com/ArvindKumar993978/browser/releases/latest"
+          target="_blank"
+          rel="noopener"
+        >
+          GitHub Releases &amp; Source
+        </a>
+      </div>
+      <div class="meta-line" id="file-meta">
+        Orbit-Browser-Setup-0.1.1.exe · ~119 MB · Built-in Auto-Updater · Open Architecture
+      </div>
+
+      <div class="mockup-wrap" aria-label="Orbit Browser Interface Preview">
+        <div class="mock-top">
+          <div class="ws-pills">
+            <span class="ws-pill active">Personal</span>
+            <span class="ws-pill">Work</span>
+            <span class="ws-pill">Research</span>
+          </div>
+          <div class="mock-tabs">
+            <div class="mock-tab active">YouTube — Split Left</div>
+            <div class="mock-tab">Google Docs — Split Right</div>
+            <div class="mock-tab">DuckDuckGo (Sleeping)</div>
+          </div>
+        </div>
+        <div class="mock-bar">
+          <div class="mock-url">
+            <span>🔒 https://www.youtube.com/watch?v=...</span>
+            <span class="shield-badge">🛡 14 Blocked</span>
+          </div>
+        </div>
+        <div class="mock-body">
+          <div class="mock-pane">
+            <h4>Split View + Smart Pane Focus</h4>
+            <p>View two live tabs side-by-side (<code>Ctrl+\</code>) or switch to Vertical Tabs anytime. Click either pane to target it from the address bar.</p>
+          </div>
+          <div class="mock-pane">
+            <h4>8 GB RAM Tab Sleeping + Shield</h4>
+            <p>Inactive silent tabs automatically sleep to free memory, while Ghostery filters ads and trackers locally with zero Orbit telemetry.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="features">
+      <h2 class="section-title">Everything You Need in a Real Daily Browser</h2>
+      <p class="section-sub">Engineered with strict process isolation, built-in SQLite persistence, and zero bloat.</p>
+      <div class="grid">
+        <div class="card">
+          <h3>Workspaces &amp; Vertical Tabs</h3>
+          <p>Separate Personal, Work, and Research tabs cleanly. Drag to reorder tabs in top bar or vertical sidebar mode.</p>
+        </div>
+        <div class="card">
+          <h3>Side-by-Side Split View</h3>
+          <p>Open any two tabs side-by-side with <code>Ctrl+\</code>, swap panes with one click, or right-click any link to open in Split View.</p>
+        </div>
+        <div class="card">
+          <h3>Ad &amp; Tracker Shield</h3>
+          <p>Powered by Ghostery's filter engine cached locally, with a live per-tab blocked counter and one-click per-site allowlist.</p>
+        </div>
+        <div class="card">
+          <h3>Zero-XSS Reader Mode</h3>
+          <p>Press <code>Ctrl+Alt+R</code> for distraction-free reading with Dark, Sepia, and Light themes—rendered safely from plain-text blocks.</p>
+        </div>
+        <div class="card">
+          <h3>8 GB RAM Tab Sleeping</h3>
+          <p>Automatically suspends idle background tabs (without interrupting playing audio) and wakes them seamlessly on click.</p>
+        </div>
+        <div class="card">
+          <h3>Command Palette &amp; Private Mode</h3>
+          <p>Jump across tabs and commands with <code>Ctrl+K</code>, or open isolated in-memory Private Windows with <code>Ctrl+Shift+N</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="install">
+      <div class="install-box">
+        <div>
+          <h2 style="margin:0 0 10px; font-size:1.45rem;">Verify &amp; Install on Windows</h2>
+          <p style="margin:0 0 10px; font-size:0.9rem; color:var(--muted);">
+            Orbit Browser uses an NSIS Windows installer with automatic updates via GitHub Releases.
+            Because v0.1.1 is an indie beta build without a paid EV code-signing certificate yet, Windows SmartScreen
+            may show <em>"Windows protected your PC"</em>—click <strong>More info</strong> &rarr; <strong>Run anyway</strong> after checking the SHA-256 hash.
+          </p>
+          <div style="font-size:0.82rem; font-weight:600; color:#cbd5e1;">SHA-256 (Orbit-Browser-Setup-0.1.1.exe)</div>
+          <div class="hash-box">
+            <span id="sha256-text">B50B595F604B9632B15897288BDC604219C43449EC554FC0CD79131A01844FDF</span>
+            <button class="copy-btn" type="button" onclick="copyHash()">Copy</button>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <a class="card" href="./privacy.html">
+            <h3>Privacy Policy &rarr;</h3>
+            <p>Zero telemetry, zero tracking servers, local SQLite storage, and Private Window guarantees.</p>
+          </a>
+          <a class="card" href="./security.html">
+            <h3>Security &amp; Protocol Architecture &rarr;</h3>
+            <p>Sandboxed tabs, strict http(s) protocol enforcement, TLS blocking, and IPC isolation.</p>
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container footer-inner">
+      <span>&copy; 2026 Orbit Browser by Arvind Kumar</span>
+      <div class="footer-links">
+        <a href="./privacy.html">Privacy Policy</a>
+        <a href="./security.html">Security</a>
+        <a href="https://github.com/ArvindKumar993978/browser" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/ArvindKumar993978/browser/releases" target="_blank" rel="noopener">Releases</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    function copyHash() {
+      const text = document.getElementById('sha256-text').textContent;
+      navigator.clipboard?.writeText(text);
+      const btn = document.querySelector('.copy-btn');
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+    }
+
+    // Automatically point buttons to the newest public GitHub Release once published
+    fetch('https://api.github.com/repos/ArvindKumar993978/browser/releases/latest')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((release) => {
+        if (!release || !Array.isArray(release.assets)) return;
+        const exe = release.assets.find((a) => a.name && a.name.endsWith('.exe') && !a.name.includes('__uninstaller'));
+        if (!exe) return;
+        document.getElementById('hero-download').href = exe.browser_download_url;
+        document.getElementById('nav-download').href = exe.browser_download_url;
+        const tag = release.tag_name || 'v0.1.1';
+        document.getElementById('nav-download').textContent = 'Download ' + tag;
+        document.getElementById('version-pill').textContent = 'Windows 10 / 11 (x64) · ' + tag + ' · Zero Telemetry';
+        const mb = Math.round((exe.size || 125000000) / (1024 * 1024));
+        document.getElementById('file-meta').textContent = exe.name + ' · ~' + mb + ' MB · Built-in Auto-Updater · Open Architecture';
+      })
+      .catch(() => {});
+  </script>
+</body>
+</html>
