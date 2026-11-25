@@ -336,8 +336,8 @@
         <a href="#install">Verify &amp; Install</a>
         <a href="./privacy.html">Privacy Policy</a>
         <a href="./security.html">Security</a>
-        <a class="nav-cta" id="nav-download" href="https://github.com/ArvindKumar993978/browser/releases/download/v0.1.1/Orbit-Browser-Setup-0.1.1.exe">
-          Download v0.1.1
+        <a class="nav-cta" id="nav-download" href="https://github.com/ArvindKumar993978/browser/releases/download/v0.1.2/Orbit-Browser-Setup-0.1.2.exe">
+          Download v0.1.2
         </a>
       </div>
     </div>
@@ -345,7 +345,7 @@
 
   <main class="container">
     <section class="hero">
-      <span class="pill" id="version-pill">Windows 10 / 11 (x64) · Version 0.1.1 · Zero Telemetry</span>
+      <span class="pill" id="version-pill">Windows 10 / 11 (x64) · Version 0.1.2 · Zero Telemetry</span>
       <h1>A Fast, Private Browser Built for Everyday Speed &amp; Focus</h1>
       <p>
         Orbit Browser combines Chromium's web compatibility with Workspaces, Vertical Tabs, Split View,
@@ -355,7 +355,7 @@
         <a
           id="hero-download"
           class="btn-primary"
-          href="https://github.com/ArvindKumar993978/browser/releases/download/v0.1.1/Orbit-Browser-Setup-0.1.1.exe"
+          href="https://github.com/ArvindKumar993978/browser/releases/download/v0.1.2/Orbit-Browser-Setup-0.1.2.exe"
         >
           Download for Windows (.exe)
         </a>
@@ -369,7 +369,7 @@
         </a>
       </div>
       <div class="meta-line" id="file-meta">
-        Orbit-Browser-Setup-0.1.1.exe · ~119 MB · Built-in Auto-Updater · Open Architecture
+        Orbit-Browser-Setup-0.1.2.exe · ~119 MB · Built-in Auto-Updater · Open Architecture
       </div>
 
       <div class="mockup-wrap" aria-label="Orbit Browser Interface Preview">
@@ -441,12 +441,12 @@
           <h2 style="margin:0 0 10px; font-size:1.45rem;">Verify &amp; Install on Windows</h2>
           <p style="margin:0 0 10px; font-size:0.9rem; color:var(--muted);">
             Orbit Browser uses an NSIS Windows installer with automatic updates via GitHub Releases.
-            Because v0.1.1 is an indie beta build without a paid EV code-signing certificate yet, Windows SmartScreen
-            may show <em>"Windows protected your PC"</em>—click <strong>More info</strong> &rarr; <strong>Run anyway</strong> after checking the SHA-256 hash.
+            Because v0.1.2 is an indie beta build without a paid EV code-signing certificate yet, Windows SmartScreen
+            may show <em>"Windows protected your PC"</em>—click <strong>More info</strong> &rarr; <strong>Run anyway</strong>.
           </p>
-          <div style="font-size:0.82rem; font-weight:600; color:#cbd5e1;">SHA-256 (Orbit-Browser-Setup-0.1.1.exe)</div>
+          <div id="sha256-label" style="font-size:0.82rem; font-weight:600; color:#cbd5e1;">SHA-256 (Orbit-Browser-Setup-0.1.2.exe)</div>
           <div class="hash-box">
-            <span id="sha256-text">F7FFF16BD8FF9E9E208B58CF888C0292DC30870FBA999A962752317CC4E8FA14</span>
+            <span id="sha256-text">Check latest GitHub Release checksum</span>
             <button class="copy-btn" type="button" onclick="copyHash()">Copy</button>
           </div>
         </div>
@@ -499,6 +499,10 @@
         document.getElementById('version-pill').textContent = 'Windows 10 / 11 (x64) · ' + tag + ' · Zero Telemetry';
         const mb = Math.round((exe.size || 125000000) / (1024 * 1024));
         document.getElementById('file-meta').textContent = exe.name + ' · ~' + mb + ' MB · Built-in Auto-Updater · Open Architecture';
+        document.getElementById('sha256-label').textContent = 'SHA-256 (' + exe.name + ')';
+        if (exe.digest && exe.digest.startsWith('sha256:')) {
+          document.getElementById('sha256-text').textContent = exe.digest.replace('sha256:', '').toUpperCase();
+        }
       })
       .catch(() => {});
   </script>

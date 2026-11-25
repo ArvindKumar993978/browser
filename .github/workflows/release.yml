@@ -27,7 +27,17 @@ jobs:
       - name: Typecheck and test
         run: npm run typecheck && npm test
 
-      - name: Build and publish Windows installer
+      - name: Build Windows installer and update metadata
+        run: npx electron-vite build && npx electron-builder --win --publish never
+
+      - name: Create single GitHub Release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/Orbit-Browser-Setup-*.exe
+            dist/Orbit-Browser-Setup-*.exe.blockmap
+            dist/latest.yml
+          draft: false
+          prerelease: false
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-vite build && npx electron-builder --win --publish always
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
