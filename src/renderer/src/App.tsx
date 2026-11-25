@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   ArrowLeft,
+  ArrowLeftRight,
   ArrowRight,
   BookOpen,
   Bookmark,
@@ -458,6 +459,17 @@ function BrowserShell(): React.JSX.Element {
               <Columns2 className="h-4 w-4" />
             </button>
 
+            {snapshot?.splitTabId && (
+              <button
+                type="button"
+                title="Swap Split Panes"
+                onClick={() => void window.orbitAPI.swapSplitPanes()}
+                className="flex h-8 w-8 items-center justify-center rounded-md text-slate-300 hover:bg-slate-700/60"
+              >
+                <ArrowLeftRight className="h-3.5 w-3.5" />
+              </button>
+            )}
+
             <button
               type="button"
               title="Bookmarks (Ctrl+B)"
@@ -604,7 +616,11 @@ function BrowserShell(): React.JSX.Element {
                 {snapshot.pendingPermission.origin}
               </span>{' '}
               wants permission to use your{' '}
-              <span className="font-semibold">{snapshot.pendingPermission.permission}</span>
+              <span className="font-semibold">
+                {snapshot.pendingPermission.permission === 'camera-and-microphone'
+                  ? 'camera and microphone'
+                  : snapshot.pendingPermission.permission}
+              </span>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
               <button
@@ -698,6 +714,7 @@ function BrowserShell(): React.JSX.Element {
           tab={activeTab}
           onBack={() => void window.orbitAPI.goBack(activeTab.id)}
           onReload={() => void window.orbitAPI.reloadOrStop(activeTab.id)}
+          onContinueHttp={() => void window.orbitAPI.continueOverHttp(activeTab.id)}
         />
       ) : snapshot?.readerArticle ? (
         <ReaderOverlay

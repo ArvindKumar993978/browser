@@ -3,12 +3,12 @@ import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { ElectronBlocker, fromElectronDetails } from '@ghostery/adblocker-electron'
 import type { BrowserStorage } from './storage'
-import { extractHostname } from './url'
+import { extractHostname, isPrivateOrLocalHost } from './url'
 
 interface SessionPipelineOptions {
   session: Electron.Session
   storage: BrowserStorage
-  getTabHostByWebContentsId: (webContentsId: number) => string | null
+  getTabInfoByWebContentsId: (webContentsId: number) => { url: string; host: string } | null
   onRequestBlocked: (webContentsId: number) => void
 }
 
@@ -45,29 +45,26 @@ export class AdBlockerService {
     }
   }
 
+  public isHttpFallbackAllowed(hostname: string): boolean {
+    return Boolean(hostname && this.downgradedHttpHosts.has(hostname.toLowerCase()))
+  }
+
   public attachToSession(options: SessionPipelineOptions): void {
-    const { session, storage, getTabHostByWebContentsId, onRequestBlocked } = options
+    const { session, storage, getTabInfoByWebContentsId, onRequestBlocked } = options
     if (this.attachedSessions.has(session)) return
     this.attachedSessions.add(session)
 
     session.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, callback) => {
       const settings = storage.getSettings()
 
-      // 1. HTTPS-First upgrade for top-level http:// navigations (excluding localhost / LAN)
+      // 1. HTTPS-First upgrade for top-level http:// navigations (excluding local/LAN/explicit fallback)
       if (
         settings.httpsFirst &&
         details.resourceType === 'mainFrame' &&
         details.url.startsWith('http://')
       ) {
         const host = extractHostname(details.url)
-        const isLocal =
-          host === 'localhost' ||
-          host.startsWith('127.') ||
-          host.startsWith('192.168.') ||
-          host.startsWith('10.') ||
-          this.downgradedHttpHosts.has(host)
-
-        if (host && !isLocal) {
+        if (host && !isPrivateOrLocalHost(host) && !this.downgradedHttpHosts.has(host)) {
           const upgraded = details.url.replace(/^http:\/\//i, 'https://')
           callback({ redirectURL: upgraded })
           return
@@ -80,12 +77,17 @@ export class AdBlockerService {
         settings.adBlockGlobal &&
         details.resourceType !== 'mainFrame'
       ) {
-        const pageHost =
-          (details.webContentsId ? getTabHostByWebContentsId(details.webContentsId) : null) ??
-          extractHostname(details.referrer || '')
+        const tabInfo = details.webContentsId
+          ? getTabInfoByWebContentsId(details.webContentsId)
+          : null
+        const pageHost = tabInfo?.host || extractHostname(details.referrer || '')
 
         if (!pageHost || !storage.isAdblockDisabledForHost(pageHost)) {
-          const request = fromElectronDetails(details)
+          const effectiveDetails =
+            !details.referrer && tabInfo?.url
+              ? { ...details, referrer: tabInfo.url }
+              : details
+          const request = fromElectronDetails(effectiveDetails)
           if (this.blocker.config.guessRequestTypeFromUrl && request.type === 'other') {
             request.guessTypeOfRequest()
           }

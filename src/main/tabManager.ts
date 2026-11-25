@@ -1,4 +1,4 @@
-import { BaseWindow, WebContentsView } from 'electron'
+import { BaseWindow, Menu, WebContentsView, clipboard } from 'electron'
 import { randomUUID } from 'crypto'
 import type {
   BrowserStateSnapshot,
@@ -12,7 +12,13 @@ import type {
 import type { AdBlockerService } from './adblocker'
 import { extractSafeReaderArticle } from './reader'
 import type { BrowserStorage } from './storage'
-import { extractHostname, extractOrigin, isAllowedWebUrl, normalizeAddressInput } from './url'
+import {
+  extractHostname,
+  extractOrigin,
+  isAllowedWebUrl,
+  isPrivateOrLocalHost,
+  normalizeAddressInput
+} from './url'
 
 export const BASE_TOOLBAR_HEIGHT = 86
 const FIND_BAR_HEIGHT = 42
@@ -62,10 +68,11 @@ export class TabManager {
 
   private activeWorkspaceId = 'personal'
   private activeTabId: string | null = null
-  private splitTabId: string | null = null
+  private splitPair: [string, string] | null = null
   private activePanel: PanelMode = 'none'
   private findOpen = false
   private commandPaletteOpen = false
+  private isHtmlFullscreen = false
   private readerArticle: ReaderArticle | null = null
   private findResult: FindInPageResult | null = null
   private overlayExtraHeight = 0
@@ -166,13 +173,34 @@ export class TabManager {
     )
   }
 
+  public getActiveTabHost(): string {
+    const active = this.tabs.find((t) => t.id === this.activeTabId)
+    return active ? extractHostname(active.state.url) : ''
+  }
+
+  public reloadActiveTabIfHost(hostname: string): void {
+    const active = this.tabs.find((t) => t.id === this.activeTabId)
+    if (!active) return
+    if (extractHostname(active.state.url) === hostname.toLowerCase()) {
+      this.reloadOrStop(active.id)
+    }
+  }
+
   public incrementBlockedCount(webContentsId: number): void {
     const tab = this.getTabByWebContentsId(webContentsId)
     if (!tab) return
     tab.state.blockedCount += 1
-    if (tab.id === this.activeTabId || tab.id === this.splitTabId) {
+    if (tab.id === this.activeTabId || this.getSplitPartnerId() === tab.id) {
       this.broadcastState()
     }
+  }
+
+  private getSplitPartnerId(): string | null {
+    if (!this.splitPair) return null
+    const [leftId, rightId] = this.splitPair
+    if (this.activeTabId === leftId) return rightId
+    if (this.activeTabId === rightId) return leftId
+    return null
   }
 
   public getSnapshot(): BrowserStateSnapshot {
@@ -186,7 +214,7 @@ export class TabManager {
       activeWorkspaceId: this.activeWorkspaceId,
       tabs: this.tabs.map((t) => ({ ...t.state })),
       activeTabId: this.activeTabId,
-      splitTabId: this.splitTabId,
+      splitTabId: this.getSplitPartnerId(),
       canRestoreClosedTab: this.closedTabs.length > 0,
       activePanel: this.activePanel,
       findOpen: this.findOpen,
@@ -215,6 +243,23 @@ export class TabManager {
     const { width, height } = this.window.getContentBounds()
     const safeWidth = Math.max(0, width)
     const safeHeight = Math.max(0, height)
+
+    if (this.isHtmlFullscreen) {
+      this.shellView.setVisible(false)
+      this.sidebarView.setVisible(false)
+      this.panelView.setVisible(false)
+      for (const tab of this.tabs) {
+        if (!tab.view) continue
+        const isActive = tab.id === this.activeTabId
+        tab.view.setVisible(isActive)
+        if (isActive) {
+          tab.view.setBounds({ x: 0, y: 0, width: safeWidth, height: safeHeight })
+        }
+      }
+      return
+    }
+
+    this.shellView.setVisible(true)
     const barHeight = this.getTopBarHeight()
     const settings = this.storage.getSettings()
     const activeTab = this.tabs.find((t) => t.id === this.activeTabId) ?? null
@@ -262,28 +307,32 @@ export class TabManager {
       this.panelView.setVisible(false)
     }
 
-    const splitActive = Boolean(
-      this.splitTabId &&
-        this.splitTabId !== this.activeTabId &&
+    const splitValid = Boolean(
+      this.splitPair &&
         !showingFullOverlay &&
-        this.tabs.some((t) => t.id === this.splitTabId)
+        this.splitPair[0] !== this.splitPair[1] &&
+        this.tabs.some((t) => t.id === this.splitPair?.[0]) &&
+        this.tabs.some((t) => t.id === this.splitPair?.[1]) &&
+        (this.activeTabId === this.splitPair?.[0] || this.activeTabId === this.splitPair?.[1])
     )
 
     for (const tab of this.tabs) {
       if (!tab.view) continue
-      const isPrimary = tab.id === this.activeTabId && !showingFullOverlay
-      const isSecondary = splitActive && tab.id === this.splitTabId
-
-      if (!isPrimary && !isSecondary) {
+      if (showingFullOverlay) {
         tab.view.setVisible(false)
         continue
       }
 
-      tab.view.setVisible(true)
-      if (splitActive && contentWidth > 100) {
+      if (splitValid && this.splitPair && contentWidth > 100) {
+        const [leftId, rightId] = this.splitPair
+        if (tab.id !== leftId && tab.id !== rightId) {
+          tab.view.setVisible(false)
+          continue
+        }
+        tab.view.setVisible(true)
         const leftWidth = Math.floor((contentWidth - SPLIT_GAP) / 2)
         const rightWidth = Math.max(0, contentWidth - leftWidth - SPLIT_GAP)
-        if (isPrimary) {
+        if (tab.id === leftId) {
           tab.view.setBounds({ x: contentX, y: barHeight, width: leftWidth, height: contentHeight })
         } else {
           tab.view.setBounds({
@@ -294,12 +343,16 @@ export class TabManager {
           })
         }
       } else {
-        tab.view.setBounds({
-          x: contentX,
-          y: barHeight,
-          width: contentWidth,
-          height: contentHeight
-        })
+        const isActive = tab.id === this.activeTabId
+        tab.view.setVisible(isActive)
+        if (isActive) {
+          tab.view.setBounds({
+            x: contentX,
+            y: barHeight,
+            width: contentWidth,
+            height: contentHeight
+          })
+        }
       }
     }
   }
@@ -356,8 +409,9 @@ export class TabManager {
     const workspaces = this.storage.getWorkspaces()
     if (!workspaces.some((w) => w.id === workspaceId)) return
     this.activeWorkspaceId = workspaceId
-    this.splitTabId = null
+    this.splitPair = null
     this.readerArticle = null
+    this.isHtmlFullscreen = false
 
     const wsTabs = this.tabs.filter((t) => t.state.workspaceId === workspaceId)
     if (wsTabs.length > 0) {
@@ -376,8 +430,10 @@ export class TabManager {
   }
 
   public toggleSplitView(targetTabId?: string): void {
-    if (this.splitTabId && (!targetTabId || targetTabId === this.splitTabId)) {
-      this.splitTabId = null
+    if (!this.activeTabId) return
+
+    if (this.splitPair && (!targetTabId || targetTabId === this.getSplitPartnerId())) {
+      this.splitPair = null
       this.layoutViews()
       this.broadcastState()
       return
@@ -389,13 +445,12 @@ export class TabManager {
       if (target.state.isSleeping || !target.view || target.view.webContents.isDestroyed()) {
         this.mountTabWebView(target)
       }
-      this.splitTabId = targetTabId
+      this.splitPair = [this.activeTabId, targetTabId]
       this.layoutViews()
       this.broadcastState()
       return
     }
 
-    // Pick another tab in current workspace or create one side-by-side
     const candidate = this.tabs.find(
       (t) => t.state.workspaceId === this.activeWorkspaceId && t.id !== this.activeTabId
     )
@@ -403,23 +458,33 @@ export class TabManager {
       if (candidate.state.isSleeping || !candidate.view || candidate.view.webContents.isDestroyed()) {
         this.mountTabWebView(candidate)
       }
-      this.splitTabId = candidate.id
+      this.splitPair = [this.activeTabId, candidate.id]
       this.layoutViews()
       this.broadcastState()
       return
     }
 
     const newId = this.createTab('https://duckduckgo.com', false, 'New Tab', this.activeWorkspaceId)
-    this.splitTabId = newId
+    this.splitPair = [this.activeTabId, newId]
+    this.layoutViews()
+    this.broadcastState()
+  }
+
+  public swapSplitPanes(): void {
+    if (!this.splitPair) return
+    this.splitPair = [this.splitPair[1], this.splitPair[0]]
     this.layoutViews()
     this.broadcastState()
   }
 
   public setFindOpen(open: boolean): void {
+    const active = this.tabs.find((t) => t.id === this.activeTabId)
+    if (open && active && (active.state.lastError || active.state.certError)) {
+      return
+    }
     this.findOpen = open
     if (!open) {
       this.findResult = null
-      const active = this.tabs.find((t) => t.id === this.activeTabId)
       if (active?.view && !active.view.webContents.isDestroyed()) {
         active.view.webContents.stopFindInPage('clearSelection')
       }
@@ -473,7 +538,8 @@ export class TabManager {
       zoomFactor: 1,
       blockedCount: 0,
       lastError: null,
-      certError: null
+      certError: null,
+      canContinueOverHttp: false
     }
 
     const managed: ManagedTab = {
@@ -515,6 +581,7 @@ export class TabManager {
     tab.state.isLoading = true
     tab.state.lastError = null
     tab.state.certError = null
+    tab.state.canContinueOverHttp = false
 
     this.window.contentView.addChildView(view, 0)
     view.setVisible(false)
@@ -536,13 +603,17 @@ export class TabManager {
 
     if (target.state.workspaceId !== this.activeWorkspaceId) {
       this.activeWorkspaceId = target.state.workspaceId
-      this.splitTabId = null
-    }
-    if (this.splitTabId === tabId) {
-      this.splitTabId = null
+      this.splitPair = null
+    } else if (
+      this.splitPair &&
+      this.splitPair[0] !== tabId &&
+      this.splitPair[1] !== tabId
+    ) {
+      this.splitPair = null
     }
 
     this.activeTabId = tabId
+    this.isHtmlFullscreen = false
     this.readerArticle = null
     this.commandPaletteOpen = false
     target.lastActiveAt = Date.now()
@@ -571,8 +642,8 @@ export class TabManager {
       if (this.closedTabs.length > 20) this.closedTabs.shift()
     }
 
-    if (this.splitTabId === tabId) {
-      this.splitTabId = null
+    if (this.splitPair && (this.splitPair[0] === tabId || this.splitPair[1] === tabId)) {
+      this.splitPair = null
     }
 
     this.destroyTabView(removed)
@@ -615,10 +686,11 @@ export class TabManager {
 
   public sleepInactiveTabs(): number {
     let slept = 0
+    const splitPartner = this.getSplitPartnerId()
     for (const tab of this.tabs) {
       if (
         tab.id === this.activeTabId ||
-        tab.id === this.splitTabId ||
+        tab.id === splitPartner ||
         tab.state.isSleeping ||
         !tab.view
       ) {
@@ -637,12 +709,13 @@ export class TabManager {
     const minutes = this.storage.getSettings().sleepAfterMinutes
     if (minutes <= 0) return
     const cutoff = Date.now() - minutes * 60_000
+    const splitPartner = this.getSplitPartnerId()
     let slept = 0
 
     for (const tab of this.tabs) {
       if (
         tab.id === this.activeTabId ||
-        tab.id === this.splitTabId ||
+        tab.id === splitPartner ||
         tab.state.isSleeping ||
         !tab.view
       ) {
@@ -676,9 +749,13 @@ export class TabManager {
     const tab = this.tabs.find((t) => t.id === tabId)
     if (!tab) return
     const settings = this.storage.getSettings()
-    const url = normalizeAddressInput(rawInput, settings.httpsFirst)
+    const candidateHost = extractHostname(rawInput.trim())
+    const useHttpsFirst = settings.httpsFirst && !this.adblocker.isHttpFallbackAllowed(candidateHost)
+    const url = normalizeAddressInput(rawInput, useHttpsFirst)
+
     tab.state.lastError = null
     tab.state.certError = null
+    tab.state.canContinueOverHttp = false
     tab.state.blockedCount = 0
     tab.state.url = url
     tab.state.isSecure = url.startsWith('https://')
@@ -695,12 +772,36 @@ export class TabManager {
     tab.view?.webContents.focus()
   }
 
+  public continueOverHttp(tabId: string): void {
+    const tab = this.tabs.find((t) => t.id === tabId)
+    if (!tab) return
+    const host = extractHostname(tab.state.url)
+    if (!host) return
+    this.adblocker.allowHttpFallbackForHost(host)
+    const httpUrl = tab.state.url.replace(/^https:\/\//i, 'http://')
+    tab.state.lastError = null
+    tab.state.certError = null
+    tab.state.canContinueOverHttp = false
+    tab.state.url = httpUrl
+    tab.state.isSecure = false
+
+    if (!tab.view || tab.view.webContents.isDestroyed()) {
+      this.mountTabWebView(tab)
+    } else {
+      void tab.view.webContents.loadURL(httpUrl).catch(() => {})
+    }
+
+    this.layoutViews()
+    this.broadcastState()
+  }
+
   public goBack(tabId: string): void {
     const tab = this.tabs.find((t) => t.id === tabId)
     if (!tab?.view || tab.view.webContents.isDestroyed()) return
     if (tab.view.webContents.navigationHistory.canGoBack()) {
       tab.state.lastError = null
       tab.state.certError = null
+      tab.state.canContinueOverHttp = false
       this.readerArticle = null
       tab.view.webContents.navigationHistory.goBack()
       this.layoutViews()
@@ -713,6 +814,7 @@ export class TabManager {
     if (tab.view.webContents.navigationHistory.canGoForward()) {
       tab.state.lastError = null
       tab.state.certError = null
+      tab.state.canContinueOverHttp = false
       this.readerArticle = null
       tab.view.webContents.navigationHistory.goForward()
       this.layoutViews()
@@ -735,6 +837,7 @@ export class TabManager {
     }
     tab.state.lastError = null
     tab.state.certError = null
+    tab.state.canContinueOverHttp = false
     tab.state.blockedCount = 0
     this.layoutViews()
     if (tab.view.webContents.getURL()) {
@@ -765,10 +868,14 @@ export class TabManager {
     const [entry] = this.permissionQueue.splice(index, 1)
     const granted = decision === 'allow-once' || decision === 'allow-always'
 
-    if (decision === 'allow-always' && !this.isPrivate) {
-      this.storage.setPermission(entry.request.origin, entry.request.permission, 'allow')
-    } else if (decision === 'deny-always' && !this.isPrivate) {
-      this.storage.setPermission(entry.request.origin, entry.request.permission, 'deny')
+    if (!this.isPrivate && (decision === 'allow-always' || decision === 'deny-always')) {
+      const storeVal = decision === 'allow-always' ? 'allow' : 'deny'
+      if (entry.request.permission === 'camera-and-microphone') {
+        this.storage.setPermission(entry.request.origin, 'camera', storeVal)
+        this.storage.setPermission(entry.request.origin, 'microphone', storeVal)
+      } else {
+        this.storage.setPermission(entry.request.origin, entry.request.permission, storeVal)
+      }
     }
 
     entry.callback(granted)
@@ -809,7 +916,10 @@ export class TabManager {
     ): PermissionKind | null => {
       if (permission === 'media') {
         const mediaTypes = 'mediaTypes' in details ? details.mediaTypes : undefined
-        if (mediaTypes?.includes('audio') && !mediaTypes.includes('video')) return 'microphone'
+        const hasVideo = mediaTypes?.includes('video') ?? false
+        const hasAudio = mediaTypes?.includes('audio') ?? false
+        if (hasVideo && hasAudio) return 'camera-and-microphone'
+        if (hasAudio && !hasVideo) return 'microphone'
         return 'camera'
       }
       if (permission === 'geolocation') return 'location'
@@ -817,13 +927,27 @@ export class TabManager {
       return null
     }
 
+    const readSavedPermission = (origin: string, kind: PermissionKind): 'allow' | 'deny' | null => {
+      // Private windows never inherit normal-window saved permissions
+      if (this.isPrivate) return null
+      if (kind === 'camera-and-microphone') {
+        const cam = this.storage.getPermission(origin, 'camera')
+        const mic = this.storage.getPermission(origin, 'microphone')
+        if (cam === 'allow' && mic === 'allow') return 'allow'
+        if (cam === 'deny' || mic === 'deny') return 'deny'
+        return null
+      }
+      return this.storage.getPermission(origin, kind)
+    }
+
     this.webSession.setPermissionCheckHandler((_wc, permission, requestingOrigin, details) => {
       if (permission === 'fullscreen') return true
+      if (this.isPrivate) return false
       const kind = mapElectronPermission(permission, details)
       if (!kind) return false
       const origin = extractOrigin(requestingOrigin)
       if (!origin) return false
-      return this.storage.getPermission(origin, kind) === 'allow'
+      return readSavedPermission(origin, kind) === 'allow'
     })
 
     this.webSession.setPermissionRequestHandler((wc, permission, callback, details) => {
@@ -843,7 +967,7 @@ export class TabManager {
         return
       }
 
-      const saved = this.storage.getPermission(origin, kind)
+      const saved = readSavedPermission(origin, kind)
       if (saved === 'allow') {
         callback(true)
         return
@@ -881,10 +1005,142 @@ export class TabManager {
       this.broadcastState()
     }
 
+    // Focusing a split-view pane switches the toolbar/address-bar target to that pane
+    wc.on('focus', () => {
+      if (this.splitPair && this.activeTabId !== tab.id) {
+        if (this.splitPair[0] === tab.id || this.splitPair[1] === tab.id) {
+          this.activeTabId = tab.id
+          this.broadcastState()
+        }
+      }
+    })
+
+    wc.on('enter-html-full-screen', () => {
+      this.isHtmlFullscreen = true
+      if (!this.window.isFullScreen()) {
+        this.window.setFullScreen(true)
+      }
+      this.layoutViews()
+    })
+
+    wc.on('leave-html-full-screen', () => {
+      this.isHtmlFullscreen = false
+      if (this.window.isFullScreen()) {
+        this.window.setFullScreen(false)
+      }
+      this.layoutViews()
+    })
+
+    wc.on('zoom-changed', () => {
+      if (wc.isDestroyed()) return
+      tab.state.zoomFactor = wc.getZoomFactor()
+      this.broadcastState()
+    })
+
+    wc.on('context-menu', (_event, params) => {
+      const template: Electron.MenuItemConstructorOptions[] = []
+
+      if (params.linkURL && isAllowedWebUrl(params.linkURL)) {
+        template.push(
+          {
+            label: 'Open Link in New Tab',
+            click: () => this.createTab(params.linkURL, true, 'New Tab', tab.state.workspaceId)
+          },
+          {
+            label: 'Open Link in Split View',
+            click: () => {
+              const newId = this.createTab(params.linkURL, false, 'New Tab', tab.state.workspaceId)
+              this.splitPair = [tab.id, newId]
+              this.layoutViews()
+              this.broadcastState()
+            }
+          },
+          {
+            label: 'Copy Link Address',
+            click: () => clipboard.writeText(params.linkURL)
+          },
+          { type: 'separator' }
+        )
+      }
+
+      if (params.mediaType === 'image' && params.srcURL && isAllowedWebUrl(params.srcURL)) {
+        template.push(
+          {
+            label: 'Open Image in New Tab',
+            click: () => this.createTab(params.srcURL, true, 'Image', tab.state.workspaceId)
+          },
+          {
+            label: 'Save Image As...',
+            click: () => wc.downloadURL(params.srcURL)
+          },
+          {
+            label: 'Copy Image Address',
+            click: () => clipboard.writeText(params.srcURL)
+          },
+          { type: 'separator' }
+        )
+      }
+
+      if (params.isEditable) {
+        template.push(
+          { role: 'undo' },
+          { role: 'redo' },
+          { type: 'separator' },
+          { role: 'cut' },
+          { role: 'copy' },
+          { role: 'paste' },
+          { role: 'selectAll' },
+          { type: 'separator' }
+        )
+      } else if (params.selectionText.trim()) {
+        const selected = params.selectionText.trim()
+        template.push(
+          { role: 'copy' },
+          {
+            label: `Search DuckDuckGo for "${selected.slice(0, 28)}${selected.length > 28 ? '…' : ''}"`,
+            click: () =>
+              this.createTab(
+                `https://duckduckgo.com/?q=${encodeURIComponent(selected)}`,
+                true,
+                'Search',
+                tab.state.workspaceId
+              )
+          },
+          { type: 'separator' }
+        )
+      }
+
+      template.push(
+        {
+          label: 'Back',
+          enabled: wc.navigationHistory.canGoBack(),
+          click: () => this.goBack(tab.id)
+        },
+        {
+          label: 'Forward',
+          enabled: wc.navigationHistory.canGoForward(),
+          click: () => this.goForward(tab.id)
+        },
+        {
+          label: 'Reload',
+          click: () => this.reloadOrStop(tab.id)
+        },
+        { type: 'separator' },
+        {
+          label: 'Inspect Element',
+          click: () => wc.inspectElement(params.x, params.y)
+        }
+      )
+
+      const menu = Menu.buildFromTemplate(template)
+      menu.popup({ window: this.window })
+    })
+
     wc.on('did-start-loading', () => {
       tab.state.isLoading = true
       tab.state.lastError = null
       tab.state.certError = null
+      tab.state.canContinueOverHttp = false
       this.layoutViews()
       this.broadcastState()
     })
@@ -937,10 +1193,17 @@ export class TabManager {
       tab.state.isLoading = false
       if (validatedURL) tab.state.url = validatedURL
 
-      if (errorCode <= -200 && errorCode >= -299) {
+      const failedUrl = tab.state.url
+      const host = extractHostname(failedUrl)
+      const isCertCode = errorCode <= -200 && errorCode >= -299
+
+      if (isCertCode) {
         tab.state.certError = `${errorDescription} (${errorCode})`
+        tab.state.canContinueOverHttp = false
       } else {
         tab.state.lastError = `${errorDescription} (${errorCode})`
+        tab.state.canContinueOverHttp =
+          failedUrl.startsWith('https://') && Boolean(host) && !isPrivateOrLocalHost(host)
       }
       this.layoutViews()
       this.broadcastState()
@@ -951,6 +1214,7 @@ export class TabManager {
       tab.state.isLoading = false
       tab.state.url = url
       tab.state.isSecure = false
+      tab.state.canContinueOverHttp = false
       tab.state.certError = `Untrusted TLS certificate (${error})`
       this.layoutViews()
       this.broadcastState()
@@ -958,12 +1222,12 @@ export class TabManager {
 
     wc.on('render-process-gone', (_event, details) => {
       tab.state.isLoading = false
+      tab.state.canContinueOverHttp = false
       tab.state.lastError = `Tab crashed (${details.reason}). Click reload to recover.`
       this.layoutViews()
       this.broadcastState()
     })
 
-    // Strict protocol enforcement on navigations and HTTP redirects
     wc.on('will-navigate', (event, url) => {
       if (!isAllowedWebUrl(url)) {
         event.preventDefault()
@@ -976,11 +1240,58 @@ export class TabManager {
       }
     })
 
-    wc.setWindowOpenHandler(({ url }) => {
-      if (isAllowedWebUrl(url)) {
-        this.createTab(url, true, 'New Tab', tab.state.workspaceId)
+    wc.setWindowOpenHandler(({ url, disposition, features }) => {
+      if (!isAllowedWebUrl(url)) {
+        return { action: 'deny' }
       }
+
+      const isOAuthOrPopup =
+        disposition === 'new-window' ||
+        /\b(width|height)=/i.test(features) ||
+        /accounts\.google\.com|github\.com\/login\/oauth|login\.microsoftonline\.com|appleid\.apple\.com|facebook\.com\/.*\/dialog\/oauth/i.test(
+          url
+        )
+
+      if (isOAuthOrPopup) {
+        // Preserve window.opener inside a strictly sandboxed popup window for OAuth flows
+        return {
+          action: 'allow',
+          overrideBrowserWindowOptions: {
+            width: 520,
+            height: 680,
+            autoHideMenuBar: true,
+            backgroundColor: '#0f1117',
+            webPreferences: {
+              session: this.webSession,
+              sandbox: true,
+              contextIsolation: true,
+              nodeIntegration: false,
+              webviewTag: false,
+              webSecurity: true,
+              allowRunningInsecureContent: false
+            }
+          }
+        }
+      }
+
+      this.createTab(url, true, 'New Tab', tab.state.workspaceId)
       return { action: 'deny' }
+    })
+
+    wc.on('did-create-window', (popupWindow) => {
+      const pwc = popupWindow.webContents
+      pwc.on('will-navigate', (event, url) => {
+        if (!isAllowedWebUrl(url)) event.preventDefault()
+      })
+      pwc.on('will-redirect', (event, url) => {
+        if (!isAllowedWebUrl(url)) event.preventDefault()
+      })
+      pwc.setWindowOpenHandler(({ url }) => {
+        if (isAllowedWebUrl(url)) {
+          this.createTab(url, true, 'New Tab', tab.state.workspaceId)
+        }
+        return { action: 'deny' }
+      })
     })
   }
 
@@ -990,9 +1301,23 @@ export class TabManager {
       const mod = input.control || input.meta
       const key = input.key.toLowerCase()
 
+      if (input.key === 'Escape' && this.isHtmlFullscreen) {
+        this.isHtmlFullscreen = false
+        if (this.window.isFullScreen()) this.window.setFullScreen(false)
+        this.layoutViews()
+        return
+      }
       if (input.key === 'Escape' && this.commandPaletteOpen) {
         event.preventDefault()
         this.setCommandPaletteOpen(false)
+        return
+      }
+      if (input.key === 'F12' || (mod && input.shift && key === 'i')) {
+        const active = this.tabs.find((t) => t.id === this.activeTabId)
+        if (active?.view && !active.view.webContents.isDestroyed()) {
+          event.preventDefault()
+          active.view.webContents.toggleDevTools()
+        }
         return
       }
       if (mod && key === 'k') {

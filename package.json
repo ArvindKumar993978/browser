@@ -1,13 +1,14 @@
 {
   "name": "orbit-browser",
-  "version": "0.1.0",
-  "description": "Orbit Browser - Milestone 1 multi-tab Electron WebContentsView browser",
+  "version": "0.1.1",
+  "description": "Orbit Browser - Custom multi-tab Electron WebContentsView browser",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit",
+    "test": "node scripts/run-tests.mjs",
     "pack": "electron-vite build && electron-builder --dir",
     "build:win": "electron-vite build && electron-builder --win"
   },

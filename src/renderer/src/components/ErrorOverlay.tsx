@@ -1,13 +1,19 @@
-import { AlertTriangle, ArrowLeft, RotateCw, ShieldAlert } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, LockOpen, RotateCw, ShieldAlert } from 'lucide-react'
 import type { TabState } from '@shared/types'
 
 interface ErrorOverlayProps {
   tab: TabState
   onBack: () => void
   onReload: () => void
+  onContinueHttp: () => void
 }
 
-export function ErrorOverlay({ tab, onBack, onReload }: ErrorOverlayProps): React.JSX.Element {
+export function ErrorOverlay({
+  tab,
+  onBack,
+  onReload,
+  onContinueHttp
+}: ErrorOverlayProps): React.JSX.Element {
   const isCert = Boolean(tab.certError)
 
   return (
@@ -37,7 +43,7 @@ export function ErrorOverlay({ tab, onBack, onReload }: ErrorOverlayProps): Reac
           </p>
         )}
 
-        <div className="mt-5 flex items-center justify-center gap-2">
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
           {tab.canGoBack && (
             <button
               type="button"
@@ -56,6 +62,16 @@ export function ErrorOverlay({ tab, onBack, onReload }: ErrorOverlayProps): Reac
             >
               <RotateCw className="h-3.5 w-3.5" />
               Reload Page
+            </button>
+          )}
+          {tab.canContinueOverHttp && (
+            <button
+              type="button"
+              onClick={onContinueHttp}
+              className="flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3.5 py-2 text-xs font-medium text-amber-300 hover:bg-amber-500/20"
+            >
+              <LockOpen className="h-3.5 w-3.5" />
+              Continue over HTTP
             </button>
           )}
         </div>

@@ -23,6 +23,7 @@ const api: OrbitBrowserAPI = {
   goBack: (tabId: string) => ipcRenderer.invoke('browser:go-back', tabId),
   goForward: (tabId: string) => ipcRenderer.invoke('browser:go-forward', tabId),
   reloadOrStop: (tabId: string) => ipcRenderer.invoke('browser:reload-or-stop', tabId),
+  continueOverHttp: (tabId: string) => ipcRenderer.invoke('browser:continue-over-http', tabId),
   setZoom: (tabId: string, action: 'in' | 'out' | 'reset') =>
     ipcRenderer.invoke('browser:set-zoom', tabId, action),
 
@@ -30,6 +31,7 @@ const api: OrbitBrowserAPI = {
     ipcRenderer.invoke('browser:switch-workspace', workspaceId),
   createWorkspace: (name: string) => ipcRenderer.invoke('browser:create-workspace', name),
   toggleSplitView: (tabId?: string) => ipcRenderer.invoke('browser:toggle-split-view', tabId),
+  swapSplitPanes: () => ipcRenderer.invoke('browser:swap-split-panes'),
   setCommandPaletteOpen: (open: boolean) =>
     ipcRenderer.invoke('browser:set-command-palette-open', open),
   toggleReaderMode: () => ipcRenderer.invoke('browser:toggle-reader-mode'),

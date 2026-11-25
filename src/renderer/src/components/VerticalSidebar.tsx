@@ -15,6 +15,7 @@ export function VerticalSidebar(): React.JSX.Element {
   const { snapshot, hydrate, setSnapshot } = useBrowserStore()
   const [creatingWs, setCreatingWs] = useState(false)
   const [wsName, setWsName] = useState('')
+  const [dragTabIdx, setDragTabIdx] = useState<number | null>(null)
 
   useEffect(() => {
     void hydrate()
@@ -93,11 +94,21 @@ export function VerticalSidebar(): React.JSX.Element {
       {/* Vertical Tabs */}
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
         {wsTabs.map((tab) => {
+          const globalIdx = snapshot.tabs.findIndex((t) => t.id === tab.id)
           const isActive = tab.id === snapshot.activeTabId
           const isSplit = tab.id === snapshot.splitTabId
           return (
             <div
               key={tab.id}
+              draggable
+              onDragStart={() => setDragTabIdx(globalIdx)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => {
+                if (dragTabIdx !== null && dragTabIdx !== globalIdx) {
+                  void window.orbitAPI.reorderTab(dragTabIdx, globalIdx)
+                }
+                setDragTabIdx(null)
+              }}
               onClick={() => void window.orbitAPI.switchTab(tab.id)}
               title={tab.title}
               className={`group flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs cursor-pointer transition-colors ${

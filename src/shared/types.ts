@@ -1,4 +1,9 @@
-export type PermissionKind = 'camera' | 'microphone' | 'location' | 'notifications'
+export type PermissionKind =
+  | 'camera'
+  | 'microphone'
+  | 'camera-and-microphone'
+  | 'location'
+  | 'notifications'
 
 export type PanelMode =
   | 'none'
@@ -42,6 +47,7 @@ export interface TabState {
   blockedCount: number
   lastError: string | null
   certError: string | null
+  canContinueOverHttp: boolean
 }
 
 export interface HistoryItem {
@@ -152,12 +158,14 @@ export interface OrbitBrowserAPI {
   goBack: (tabId: string) => Promise<void>
   goForward: (tabId: string) => Promise<void>
   reloadOrStop: (tabId: string) => Promise<void>
+  continueOverHttp: (tabId: string) => Promise<void>
   setZoom: (tabId: string, action: 'in' | 'out' | 'reset') => Promise<void>
 
   // Phase 3: Workspaces, Split View, Command Palette, Reader Mode
   switchWorkspace: (workspaceId: string) => Promise<void>
   createWorkspace: (name: string) => Promise<void>
   toggleSplitView: (tabId?: string) => Promise<void>
+  swapSplitPanes: () => Promise<void>
   setCommandPaletteOpen: (open: boolean) => Promise<void>
   toggleReaderMode: () => Promise<void>
 

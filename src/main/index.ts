@@ -176,9 +176,13 @@ function createBrowserWindow(isPrivate = false): TabManager {
   adblocker.attachToSession({
     session: webSession,
     storage,
-    getTabHostByWebContentsId: (wcId) => {
+    getTabInfoByWebContentsId: (wcId) => {
       const tab = manager.getTabByWebContentsId(wcId)
-      return tab ? extractHostname(tab.state.url) : null
+      if (!tab) return null
+      return {
+        url: tab.state.url,
+        host: extractHostname(tab.state.url)
+      }
     },
     onRequestBlocked: (wcId) => {
       manager.incrementBlockedCount(wcId)
@@ -284,6 +288,12 @@ function registerIpcHandlers(): void {
     manager.reloadOrStop(tabId)
   })
 
+  ipcMain.handle('browser:continue-over-http', (event, tabId: unknown) => {
+    const manager = getManager(event)
+    if (!manager || typeof tabId !== 'string') return
+    manager.continueOverHttp(tabId)
+  })
+
   ipcMain.handle('browser:set-zoom', (event, tabId: unknown, action: unknown) => {
     const manager = getManager(event)
     if (
@@ -312,6 +322,10 @@ function registerIpcHandlers(): void {
     const manager = getManager(event)
     if (!manager) return
     manager.toggleSplitView(typeof tabId === 'string' ? tabId : undefined)
+  })
+
+  ipcMain.handle('browser:swap-split-panes', (event) => {
+    getManager(event)?.swapSplitPanes()
   })
 
   ipcMain.handle('browser:set-command-palette-open', (event, open: unknown) => {
@@ -464,6 +478,7 @@ function registerIpcHandlers(): void {
     const manager = getManager(event)
     if (!manager || typeof hostname !== 'string') return
     storage.toggleAdblockForHost(hostname)
+    manager.reloadActiveTabIfHost(hostname)
     for (const m of managers.values()) m.broadcastState()
   })
 
