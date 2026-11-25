@@ -738,7 +738,9 @@ export class TabManager {
 
   private destroyTabView(tab: ManagedTab): void {
     if (!tab.view) return
-    this.window.contentView.removeChildView(tab.view)
+    if (!this.window.isDestroyed()) {
+      this.window.contentView.removeChildView(tab.view)
+    }
     if (!tab.view.webContents.isDestroyed()) {
       tab.view.webContents.close()
     }
@@ -884,6 +886,7 @@ export class TabManager {
   }
 
   public broadcastState(): void {
+    if (this.window.isDestroyed()) return
     const snapshot = this.getSnapshot()
     if (!this.shellView.webContents.isDestroyed()) {
       this.shellView.webContents.send('browser:state-changed', snapshot)

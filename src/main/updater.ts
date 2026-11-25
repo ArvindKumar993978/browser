@@ -1,4 +1,6 @@
 import { app } from 'electron'
+import { existsSync } from 'fs'
+import { join } from 'path'
 import { autoUpdater } from 'electron-updater'
 import type { UpdateState } from '../shared/types'
 
@@ -64,18 +66,22 @@ export class UpdaterService {
     return { ...this.state }
   }
 
+  private hasUpdateConfig(): boolean {
+    return app.isPackaged && existsSync(join(process.resourcesPath, 'app-update.yml'))
+  }
+
   public scheduleInitialCheck(): void {
-    if (!app.isPackaged) return
+    if (!this.hasUpdateConfig()) return
     setTimeout(() => {
       void this.checkForUpdates()
     }, 8_000)
   }
 
   public async checkForUpdates(): Promise<void> {
-    if (!app.isPackaged) {
+    if (!this.hasUpdateConfig()) {
       this.setState({
         status: 'up-to-date',
-        message: `Dev mode (${app.getVersion()}). Auto-updates run in installed builds.`
+        message: `Orbit ${app.getVersion()} (standalone/dev mode).`
       })
       return
     }

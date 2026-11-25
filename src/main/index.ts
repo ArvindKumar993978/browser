@@ -153,8 +153,13 @@ function createBrowserWindow(isPrivate = false): TabManager {
   const { width } = win.getContentBounds()
   shellView.setBounds({ x: 0, y: 0, width, height: BASE_TOOLBAR_HEIGHT })
 
+  const winId = win.id
+  const shellWcId = shellView.webContents.id
+  const sidebarWcId = sidebarView.webContents.id
+  const panelWcId = panelView.webContents.id
+
   const manager = new TabManager({
-    windowId: win.id,
+    windowId: winId,
     isPrivate,
     window: win,
     shellView,
@@ -168,10 +173,10 @@ function createBrowserWindow(isPrivate = false): TabManager {
     }
   })
 
-  managers.set(win.id, manager)
-  senderToManager.set(shellView.webContents.id, manager)
-  senderToManager.set(sidebarView.webContents.id, manager)
-  senderToManager.set(panelView.webContents.id, manager)
+  managers.set(winId, manager)
+  senderToManager.set(shellWcId, manager)
+  senderToManager.set(sidebarWcId, manager)
+  senderToManager.set(panelWcId, manager)
 
   adblocker.attachToSession({
     session: webSession,
@@ -206,12 +211,10 @@ function createBrowserWindow(isPrivate = false): TabManager {
   manager.initializeTabs()
 
   win.on('closed', () => {
-    managers.delete(win.id)
-    for (const view of [shellView, sidebarView, panelView]) {
-      if (!view.webContents.isDestroyed()) {
-        senderToManager.delete(view.webContents.id)
-      }
-    }
+    managers.delete(winId)
+    senderToManager.delete(shellWcId)
+    senderToManager.delete(sidebarWcId)
+    senderToManager.delete(panelWcId)
     if (isPrivate) {
       void webSession.clearStorageData().catch(() => {})
       void webSession.clearCache().catch(() => {})
