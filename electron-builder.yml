@@ -1,0 +1,36 @@
+appId: com.arvind.orbitbrowser
+productName: Orbit Browser
+copyright: Copyright © 2026 Arvind Kumar
+directories:
+  buildResources: build
+  output: dist
+files:
+  - out/**/*
+  - package.json
+  - PRIVACY_POLICY.md
+  - SECURITY.md
+  - "!scripts/**"
+  - "!src/**"
+asar: true
+publish:
+  - provider: github
+    owner: ArvindKumar993978
+    repo: browser
+win:
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: Orbit-Browser-Setup-${version}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Orbit Browser
+  uninstallDisplayName: Orbit Browser
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
