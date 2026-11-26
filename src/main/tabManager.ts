@@ -1139,6 +1139,10 @@ export class TabManager {
       menu.popup({ window: this.window })
     })
 
+    wc.on('dom-ready', () => {
+      this.adblocker.applyCosmetics(wc, wc.getURL() || tab.state.url, this.storage)
+    })
+
     wc.on('did-start-loading', () => {
       tab.state.isLoading = true
       tab.state.lastError = null
@@ -1177,6 +1181,7 @@ export class TabManager {
       if (!isMainFrame) return
       tab.state.url = url
       tab.state.isSecure = url.startsWith('https://')
+      this.adblocker.applyCosmetics(wc, url, this.storage)
       syncNavFlags()
     })
 

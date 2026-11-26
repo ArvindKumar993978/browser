@@ -112,6 +112,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         storage = OrbitStorage(this)
+        adblocker.initialize(this)
 
         buildLayout()
         handleBackPress()
@@ -660,6 +661,11 @@ class MainActivity : AppCompatActivity() {
                 tab.title = view?.title?.ifBlank { tab.url } ?: tab.url
                 tab.canGoBack = view?.canGoBack() ?: false
                 tab.canGoForward = view?.canGoForward() ?: false
+                val settings = storage.getSettings()
+                val pageHost = UrlUtils.extractHostname(tab.url)
+                if (settings.adBlockGlobal && (pageHost.isEmpty() || !storage.isAdblockDisabledForHost(pageHost))) {
+                    view?.evaluateJavascript(adblocker.buildCosmeticScript(tab.url), null)
+                }
                 if (!tab.isPrivate && tab.lastError == null && tab.certError == null) {
                     storage.addHistory(tab.url, tab.title)
                 }

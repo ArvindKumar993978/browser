@@ -570,11 +570,15 @@ if (!gotSingleInstanceLock) {
     }
   })
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     storage = new BrowserStorage()
     adblocker = new AdBlockerService()
     updater = new UpdaterService((state) => broadcastUpdateState(state))
-    void adblocker.initialize()
+    // Wait briefly so cached or fast-downloaded Ghostery full rules protect the initial tabs
+    await Promise.race([
+      adblocker.initialize(),
+      new Promise<void>((resolve) => setTimeout(resolve, 3000))
+    ])
 
     registerIpcHandlers()
     const m = createBrowserWindow(false)
