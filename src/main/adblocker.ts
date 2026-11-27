@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
-import { ElectronBlocker, fromElectronDetails } from '@ghostery/adblocker-electron'
+import { ElectronBlocker, Request, fromElectronDetails } from '@ghostery/adblocker-electron'
 import { parse } from 'tldts-experimental'
 import type { BrowserStorage } from './storage'
 import { extractHostname, isPrivateOrLocalHost } from './url'
@@ -13,7 +13,7 @@ interface SessionPipelineOptions {
   onRequestBlocked: (webContentsId: number) => void
 }
 
-const FALLBACK_AD_HOSTS = [
+const EXTRA_AD_HOSTS = [
   'doubleclick.net',
   'googlesyndication.com',
   'googleadservices.com',
@@ -34,14 +34,47 @@ const FALLBACK_AD_HOSTS = [
   'amazon-adsystem.com',
   'mgid.com',
   'popads.net',
-  'propellerads.com'
+  'popcash.net',
+  'propellerads.com',
+  'highperformanceformat.com',
+  'adsterra.com',
+  'hilltopads.net',
+  'monetag.com',
+  'exoclick.com',
+  'juicyads.com',
+  'revcontent.com',
+  'ads-api.twitter.com',
+  'adeventtracker.spotify.com',
+  'ads.tiktok.com',
+  'analytics.tiktok.com',
+  'bat.bing.com'
+]
+
+const EXTRA_AD_PATHS = [
+  '/pagead/',
+  '/api/stats/ads',
+  '/ptracking',
+  '/get_midroll_info',
+  '/youtubei/v1/player/ad_break',
+  '/ads/ga-audiences',
+  '/en_us/fbevents.js',
+  '/popunder'
 ]
 
 const GENERIC_HIDE_CSS = `
   ins.adsbygoogle,
   [id^="google_ads_iframe"],
   [id^="div-gpt-ad"],
+  [class*="taboola"],
+  [id*="taboola"],
+  [class*="outbrain"],
+  [id*="outbrain"],
+  [class*="mgid"],
+  [id*="mgid"],
+  shreddit-ad-post,
+  [data-testid="placementTracking"],
   ytd-ad-slot-renderer,
+  ytm-ad-slot-renderer,
   ytd-promoted-sparkles-web-renderer,
   ytd-display-ad-renderer,
   ytd-banner-promo-renderer,
@@ -54,9 +87,46 @@ const GENERIC_HIDE_CSS = `
   }
 `
 
-const YOUTUBE_AD_SKIPPER_JS = `(() => {
+const YOUTUBE_AD_GUARD_JS = `(() => {
   if (window.__orbitYtAdGuard) return;
   window.__orbitYtAdGuard = true;
+
+  const stripAds = (obj) => {
+    if (!obj || typeof obj !== 'object') return obj;
+    try {
+      delete obj.adPlacements;
+      delete obj.playerAds;
+      delete obj.adSlots;
+      delete obj.adBreakHeartbeatParams;
+    } catch {}
+    return obj;
+  };
+
+  if (window.ytInitialPlayerResponse) {
+    stripAds(window.ytInitialPlayerResponse);
+  }
+
+  const origFetch = window.fetch;
+  if (typeof origFetch === 'function') {
+    window.fetch = async function(...args) {
+      const res = await origFetch.apply(this, args);
+      try {
+        const reqUrl = typeof args[0] === 'string' ? args[0] : (args[0]?.url || '');
+        if (reqUrl.includes('/youtubei/v1/player') || reqUrl.includes('/youtubei/v1/next')) {
+          const clone = res.clone();
+          const data = await clone.json();
+          stripAds(data);
+          return new Response(JSON.stringify(data), {
+            status: res.status,
+            statusText: res.statusText,
+            headers: res.headers
+          });
+        }
+      } catch {}
+      return res;
+    };
+  }
+
   const tick = () => {
     const player = document.querySelector('.html5-video-player');
     if (player && player.classList.contains('ad-showing')) {
@@ -70,12 +140,48 @@ const YOUTUBE_AD_SKIPPER_JS = `(() => {
       const skipBtn = document.querySelector('.ytp-skip-ad-button, .ytp-ad-skip-button, .ytp-ad-skip-button-modern');
       if (skipBtn instanceof HTMLElement) skipBtn.click();
     }
-    document.querySelectorAll('ytd-ad-slot-renderer, ytm-promoted-sparkles-web-renderer, #masthead-ad').forEach((el) => {
+    document.querySelectorAll(
+      'ytd-ad-slot-renderer, ytm-ad-slot-renderer, ytm-promoted-sparkles-web-renderer, ytd-promoted-sparkles-web-renderer, #masthead-ad'
+    ).forEach((el) => {
       if (el instanceof HTMLElement) el.style.setProperty('display', 'none', 'important');
     });
+    // Hide Shorts sponsored reels
+    document.querySelectorAll('ytd-reel-video-renderer').forEach((reel) => {
+      if (reel.querySelector('ad-badge-view-model, ytd-ad-slot-renderer')) {
+        reel.style.setProperty('display', 'none', 'important');
+      }
+    });
   };
-  setInterval(tick, 350);
+
+  setInterval(tick, 300);
   tick();
+})();`
+
+const GENERIC_MUTATION_GUARD_JS = `(() => {
+  if (window.__orbitDomAdObserver) return;
+  window.__orbitDomAdObserver = true;
+  const selector = 'ins.adsbygoogle, [id^="google_ads_iframe"], [id^="div-gpt-ad"], shreddit-ad-post, [data-testid="placementTracking"], [class*="taboola"], [id*="taboola"], [class*="outbrain"], [id*="outbrain"], [class*="mgid"], [id*="mgid"]';
+  const sweep = () => {
+    document.querySelectorAll(selector).forEach((el) => {
+      if (el instanceof HTMLElement) el.style.setProperty('display', 'none', 'important');
+    });
+    // Neutralize invisible full-viewport click-hijack anchor traps
+    document.querySelectorAll('a[target="_blank"]').forEach((a) => {
+      if (!(a instanceof HTMLElement)) return;
+      const r = a.getBoundingClientRect();
+      if (r.width > window.innerWidth * 0.85 && r.height > window.innerHeight * 0.85) {
+        const style = getComputedStyle(a);
+        if (style.position === 'fixed' || style.position === 'absolute') {
+          a.style.setProperty('display', 'none', 'important');
+        }
+      }
+    });
+  };
+  const mo = new MutationObserver(() => sweep());
+  if (document.documentElement) {
+    mo.observe(document.documentElement, { childList: true, subtree: true });
+  }
+  sweep();
 })();`
 
 export class AdBlockerService {
@@ -91,7 +197,7 @@ export class AdBlockerService {
   }
 
   private async loadEngine(): Promise<void> {
-    const cachePath = join(app.getPath('userData'), 'adblocker-full-engine.bin')
+    const cachePath = join(app.getPath('userData'), 'adblocker-full-v2.bin')
     try {
       if (existsSync(cachePath)) {
         const bytes = readFileSync(cachePath)
@@ -115,12 +221,42 @@ export class AdBlockerService {
     return Boolean(hostname && this.downgradedHttpHosts.has(hostname.toLowerCase()))
   }
 
-  private matchesFallbackHost(reqUrl: string, pageHost: string): boolean {
+  private matchesExtraRules(reqUrl: string, pageHost: string): boolean {
+    const lower = reqUrl.toLowerCase()
+    if (EXTRA_AD_PATHS.some((p) => lower.includes(p))) {
+      return true
+    }
     const reqHost = extractHostname(reqUrl)
     if (!reqHost || (pageHost && (reqHost === pageHost || reqHost.endsWith(`.${pageHost}`)))) {
       return false
     }
-    return FALLBACK_AD_HOSTS.some((h) => reqHost === h || reqHost.endsWith(`.${h}`))
+    return EXTRA_AD_HOSTS.some((h) => reqHost === h || reqHost.endsWith(`.${h}`))
+  }
+
+  public shouldBlockNavigationOrPopup(
+    targetUrl: string,
+    sourceUrl: string,
+    storage: BrowserStorage
+  ): boolean {
+    if (!storage.getSettings().adBlockGlobal) return false
+    const sourceHost = extractHostname(sourceUrl)
+    if (sourceHost && storage.isAdblockDisabledForHost(sourceHost)) return false
+
+    if (this.matchesExtraRules(targetUrl, sourceHost)) return true
+    if (!this.blocker) return false
+
+    const targetHost = extractHostname(targetUrl)
+    if (sourceHost && targetHost && (targetHost === sourceHost || targetHost.endsWith(`.${sourceHost}`))) {
+      return false
+    }
+
+    const req = Request.fromRawDetails({
+      url: targetUrl,
+      sourceUrl,
+      type: 'mainFrame'
+    })
+    const { match } = this.blocker.match(req)
+    return match
   }
 
   public applyCosmetics(wc: Electron.WebContents, pageUrl: string, storage: BrowserStorage): void {
@@ -133,11 +269,11 @@ export class AdBlockerService {
     const host = extractHostname(pageUrl)
     if (host && storage.isAdblockDisabledForHost(host)) return
 
-    // Always inject fast generic cosmetic hiding CSS
     void wc.insertCSS(GENERIC_HIDE_CSS, { cssOrigin: 'user' }).catch(() => {})
+    void wc.executeJavaScript(GENERIC_MUTATION_GUARD_JS, true).catch(() => {})
 
     if (host === 'youtube.com' || host.endsWith('.youtube.com')) {
-      void wc.executeJavaScript(YOUTUBE_AD_SKIPPER_JS, true).catch(() => {})
+      void wc.executeJavaScript(YOUTUBE_AD_GUARD_JS, true).catch(() => {})
     }
 
     if (!this.blocker) return
@@ -190,14 +326,20 @@ export class AdBlockerService {
         }
       }
 
-      // 2. Ad & Tracker Blocking (skip mainFrame navigation itself, respect per-site allowlist)
-      if (settings.adBlockGlobal && details.resourceType !== 'mainFrame') {
+      // 2. Ad & Tracker Blocking (including mainFrame $document/$popup matches + subresources)
+      if (settings.adBlockGlobal) {
         const tabInfo = details.webContentsId
           ? getTabInfoByWebContentsId(details.webContentsId)
           : null
         const pageHost = tabInfo?.host || extractHostname(details.referrer || '')
 
         if (!pageHost || !storage.isAdblockDisabledForHost(pageHost)) {
+          if (this.matchesExtraRules(details.url, pageHost)) {
+            if (details.webContentsId) onRequestBlocked(details.webContentsId)
+            callback({ cancel: true })
+            return
+          }
+
           if (this.blocker) {
             const effectiveDetails =
               !details.referrer && tabInfo?.url
@@ -223,10 +365,6 @@ export class AdBlockerService {
               callback({ cancel: true })
               return
             }
-          } else if (this.matchesFallbackHost(details.url, pageHost)) {
-            if (details.webContentsId) onRequestBlocked(details.webContentsId)
-            callback({ cancel: true })
-            return
           }
         }
       }

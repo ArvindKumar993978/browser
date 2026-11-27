@@ -1237,19 +1237,33 @@ export class TabManager {
     })
 
     wc.on('will-navigate', (event, url) => {
-      if (!isAllowedWebUrl(url)) {
+      if (!isAllowedWebUrl(url) || this.adblocker.shouldBlockNavigationOrPopup(url, tab.state.url, this.storage)) {
         event.preventDefault()
+        if (isAllowedWebUrl(url)) {
+          tab.state.blockedCount += 1
+          this.broadcastState()
+        }
       }
     })
 
     wc.on('will-redirect', (event, url) => {
-      if (!isAllowedWebUrl(url)) {
+      if (!isAllowedWebUrl(url) || this.adblocker.shouldBlockNavigationOrPopup(url, tab.state.url, this.storage)) {
         event.preventDefault()
+        if (isAllowedWebUrl(url)) {
+          tab.state.blockedCount += 1
+          this.broadcastState()
+        }
       }
     })
 
     wc.setWindowOpenHandler(({ url, disposition, features }) => {
       if (!isAllowedWebUrl(url)) {
+        return { action: 'deny' }
+      }
+
+      if (this.adblocker.shouldBlockNavigationOrPopup(url, tab.state.url, this.storage)) {
+        tab.state.blockedCount += 1
+        this.broadcastState()
         return { action: 'deny' }
       }
 

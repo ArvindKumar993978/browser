@@ -612,6 +612,15 @@ class MainActivity : AppCompatActivity() {
                 if (!UrlUtils.isAllowedWebUrl(targetUrl)) return true
 
                 val settings = storage.getSettings()
+                val pageHost = UrlUtils.extractHostname(tab.url)
+                if (settings.adBlockGlobal && (pageHost.isEmpty() || !storage.isAdblockDisabledForHost(pageHost))) {
+                    if (adblocker.shouldBlockRequest(targetUrl, pageHost)) {
+                        tab.blockedCount += 1
+                        if (tab.id == activeTabId) handler.post { updateShieldBadge() }
+                        return true
+                    }
+                }
+
                 val host = UrlUtils.extractHostname(targetUrl)
                 if (settings.httpsFirst && targetUrl.startsWith("http://") && !UrlUtils.isPrivateOrLocalHost(host) && !adblocker.isHttpFallbackAllowed(host)) {
                     val upgraded = targetUrl.replaceFirst(Regex("^http://", RegexOption.IGNORE_CASE), "https://")
@@ -649,7 +658,26 @@ class MainActivity : AppCompatActivity() {
                     tab.isSecure = url.startsWith("https://")
                     tab.blockedCount = 0
                 }
+                val settings = storage.getSettings()
+                val pageHost = UrlUtils.extractHostname(tab.url)
+                if (settings.adBlockGlobal && (pageHost.isEmpty() || !storage.isAdblockDisabledForHost(pageHost))) {
+                    view?.evaluateJavascript(adblocker.buildCosmeticScript(tab.url), null)
+                }
                 if (tab.id == activeTabId) refreshChrome()
+            }
+
+            override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
+                super.doUpdateVisitedHistory(view, url, isReload)
+                if (!url.isNullOrBlank()) {
+                    tab.url = url
+                    tab.isSecure = url.startsWith("https://")
+                    val settings = storage.getSettings()
+                    val pageHost = UrlUtils.extractHostname(url)
+                    if (settings.adBlockGlobal && (pageHost.isEmpty() || !storage.isAdblockDisabledForHost(pageHost))) {
+                        view?.evaluateJavascript(adblocker.buildCosmeticScript(url), null)
+                    }
+                    if (tab.id == activeTabId) refreshChrome()
+                }
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
@@ -783,7 +811,31 @@ class MainActivity : AppCompatActivity() {
                     webViewClient = object : WebViewClient() {
                         override fun shouldOverrideUrlLoading(v: WebView?, req: WebResourceRequest?): Boolean {
                             val u = req?.url?.toString() ?: return true
-                            return !UrlUtils.isAllowedWebUrl(u)
+                            if (!UrlUtils.isAllowedWebUrl(u)) return true
+                            val settings = storage.getSettings()
+                            val parentHost = UrlUtils.extractHostname(tab.url)
+                            if (settings.adBlockGlobal && (parentHost.isEmpty() || !storage.isAdblockDisabledForHost(parentHost))) {
+                                if (adblocker.shouldBlockRequest(u, parentHost)) {
+                                    tab.blockedCount += 1
+                                    if (tab.id == activeTabId) handler.post { updateShieldBadge() }
+                                    popupDialog.dismiss()
+                                    return true
+                                }
+                            }
+                            return false
+                        }
+
+                        override fun onPageStarted(v: WebView?, url: String?, favicon: Bitmap?) {
+                            val u = url ?: return
+                            val settings = storage.getSettings()
+                            val parentHost = UrlUtils.extractHostname(tab.url)
+                            if (settings.adBlockGlobal && (parentHost.isEmpty() || !storage.isAdblockDisabledForHost(parentHost))) {
+                                if (adblocker.shouldBlockRequest(u, parentHost)) {
+                                    tab.blockedCount += 1
+                                    if (tab.id == activeTabId) handler.post { updateShieldBadge() }
+                                    popupDialog.dismiss()
+                                }
+                            }
                         }
                     }
                     webChromeClient = object : WebChromeClient() {
